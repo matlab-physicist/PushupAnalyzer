@@ -95,4 +95,10 @@ class MultiViewCounterTest {
         assertEquals(DetectionSensitivity.VERY_SENSITIVE,DetectionSensitivity.fromName("VERY_SENSITIVE"))
     }
 
+    @Test fun quickShallowMovementsWithTopPausesAreNotRejected() {
+        val values=List(60) { listOf(144.0,144.0,144.0,144.0,130.0,130.0,144.0,144.0,144.0,144.0) }.flatten()
+        val channels=mapOf("left-2d" to values.mapIndexed { i,a -> AngleSample(i/10.0,a) })
+        assertEquals(60,MultiViewCounter.detect(channels,60.0,DetectionSensitivity.SENSITIVE).reps.size)
+    }
+
 }

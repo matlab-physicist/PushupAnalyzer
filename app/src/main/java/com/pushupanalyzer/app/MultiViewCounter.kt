@@ -91,7 +91,7 @@ object MultiViewCounter {
                     if(a<minimum){minimum=a;bottom=t;state=1}
                     if(a>=minimum+(peak-minimum)*recovery){
                         val down=bottom-top;val up=t-bottom
-                        if(down in 0.15..15.0 && up in 0.15..15.0 && down+up>=0.5)
+                        if(down in 0.15..15.0 && up in 0.15..15.0)
                             reps+=Repetition(Segment(top,bottom,Phase.DOWN),Segment(bottom,t,Phase.UP))
                         peak=a;top=t;state=0
                     }
