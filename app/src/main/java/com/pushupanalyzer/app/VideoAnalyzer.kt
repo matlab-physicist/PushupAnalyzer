@@ -8,20 +8,19 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.pose.*
 import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
 import java.util.concurrent.TimeUnit
-import kotlin.math.abs
 import kotlin.math.ceil
 
 class VideoAnalyzer(private val context: Context) {
     fun analyze(uri: Uri, cancelled: () -> Unit, progress: (String) -> Unit): Analysis {
         val reader = MediaMetadataRetriever()
         val detector = PoseDetection.getClient(PoseDetectorOptions.Builder()
-            .setDetectorMode(PoseDetectorOptions.SINGLE_IMAGE_MODE).build())
+            .setDetectorMode(PoseDetectorOptions.STREAM_MODE).build())
         try {
             reader.setDataSource(context, uri)
             val duration = (reader.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 ?.toLongOrNull() ?: 0L) / 1000.0
             require(duration in 0.5..600.0) { "Choose a video between 0.5 seconds and 10 minutes." }
-            val left = mutableListOf<AngleSample>(); val right = mutableListOf<AngleSample>()
+            val channels = listOf("left-3d","right-3d","left-2d","right-2d","left-reach","right-reach").associateWith { mutableListOf<AngleSample>() }
             val count = ceil(duration * 10).toInt()
             for (i in 0 until count) {
                 cancelled()
@@ -32,31 +31,29 @@ class VideoAnalyzer(private val context: Context) {
                     val pose = frame?.let {
                         Tasks.await(detector.process(InputImage.fromBitmap(it, 0)), 30, TimeUnit.SECONDS)
                     }
-                    left += AngleSample(time, pose?.let { angle(it, true) })
-                    right += AngleSample(time, pose?.let { angle(it, false) })
+                    for ((name, samples) in channels) samples += AngleSample(time,pose?.let {
+                        signal(it,name.startsWith("left"),name.substringAfter('-'))
+                    })
                 } finally { frame?.recycle() }
                 if (i % 10 == 0) progress("Analyzing poses: ${100 * i / count}%")
             }
-            // Use one side for the entire clip, avoiding artificial angle jumps.
-            val selected = if (left.count { it.angle != null } >= right.count { it.angle != null }) left else right
-            val analysis = RepDetector.detect(selected, duration)
+            val analysis = MultiViewCounter.detect(channels, duration)
             require(analysis.coverage >= 0.25) {
-                "Too few visible poses. Film one person side-on, with shoulder, elbow, wrist and hip visible."
+                "Too few visible poses. Keep one person and their arms visible. Try better lighting or less occlusion."
             }
             return analysis
         } finally { detector.close(); reader.release() }
     }
 
-    private fun angle(pose: Pose, left: Boolean): Double? {
+    private fun signal(pose: Pose, left: Boolean, kind: String): Double? {
         val types = if (left) intArrayOf(PoseLandmark.LEFT_SHOULDER, PoseLandmark.LEFT_ELBOW,
             PoseLandmark.LEFT_WRIST, PoseLandmark.LEFT_HIP) else intArrayOf(PoseLandmark.RIGHT_SHOULDER,
             PoseLandmark.RIGHT_ELBOW, PoseLandmark.RIGHT_WRIST, PoseLandmark.RIGHT_HIP)
-        val points = types.map { pose.getPoseLandmark(it) ?: return null }
-        if (points.any { it.inFrameLikelihood < 0.65f }) return null
-        val (s, e, w, h) = points.map { it.position }
-        // Exclude standing arm bends: the torso must be approximately horizontal.
-        if (abs(s.x - h.x) < abs(s.y - h.y) * 0.7f) return null
-        return RepDetector.elbowAngle(s.x.toDouble(), s.y.toDouble(), e.x.toDouble(), e.y.toDouble(),
-            w.x.toDouble(), w.y.toDouble())
+        val points = types.map { type -> pose.getPoseLandmark(type)?.let {
+            val p=it.position3D
+            Joint(p.x.toDouble(),p.y.toDouble(),p.z.toDouble(),it.inFrameLikelihood.toDouble())
+        } }
+        return if(kind=="reach") MultiViewCounter.reach(points[0],points[2],points[3])
+        else MultiViewCounter.angle(points[0],points[1],points[2],kind=="3d")
     }
 }

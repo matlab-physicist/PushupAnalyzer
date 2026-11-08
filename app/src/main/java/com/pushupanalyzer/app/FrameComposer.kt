@@ -60,7 +60,7 @@ class FrameComposer(private val analysis: Analysis) : AutoCloseable {
         canvas.drawText("0s",left,bottom+26,paint)
         canvas.drawText(seconds(analysis.duration),right-90,bottom+26,paint)
         paint.textSize = 16f; paint.color = Color.LTGRAY
-        canvas.drawText("Estimated full cycles • side view • 0.1s sampling",left,HEIGHT-10f,paint)
+        canvas.drawText("Estimated full cycles • adaptive pose • 0.1s sampling",left,HEIGHT-10f,paint)
     }
     override fun close() { bitmap.recycle() }
     companion object {

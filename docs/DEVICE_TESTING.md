@@ -3,7 +3,7 @@
 Target: Samsung Galaxy S23 Ultra SM-S918B, Android 16, ARM64. These checks require the physical device; CI emulator success does not verify Qualcomm hardware or human-pose accuracy.
 
 - Install the debug APK and launch in airplane mode **before first use**. Select a local MP4 through the system picker. Confirm the pose model runs with no downloads.
-- Record ten clearly visible full side-on push-ups with a static camera. Compare count to manual annotation and phase times to frame timestamps (algorithm resolution 100 ms; model error may be larger). Repeat with different clothing colors, slow reps and short pauses.
+- Record ten clearly visible full push-ups from front, oblique, rear and side views with a static camera. Compare count to manual annotation and phase times to frame timestamps (algorithm resolution 100 ms; model error may be larger). Repeat with different clothing colors, slow reps and short pauses.
 - Try portrait, landscape, rotated metadata, variable frame rate, HEVC and HDR camera footage. Confirm the output is upright, fitted without stretching, approximately source duration, with readable synchronized overlays/graphs. Export intentionally converts to SDR H.264 at 30 fps.
 - Verify AAC sound remains synchronized near both start and end. Non-AAC sources must show the omission warning.
 - Find the playable MP4 in Samsung Gallery under Movies/PushupAnalyzer. Verify opening it through the app, seeking and sharing.
