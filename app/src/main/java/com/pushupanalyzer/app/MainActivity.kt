@@ -42,14 +42,14 @@ class MainActivity : Activity() {
             insets
         }
         layout.addView(TextView(this).apply {
-            text = "Pushup Analyzer"; textSize = 28f; setTextColor(Color.rgb(16,35,60))
+            setText(R.string.app_name); textSize = 28f; setTextColor(Color.rgb(16,35,60))
         })
         layout.addView(TextView(this).apply {
-            text = "Offline video analysis\n\nFilm one person from the side with the whole body visible and a steady camera. Use a local MP4, up to 10 minutes.\n\nCounts full extended–bent–extended arm cycles. Timings are estimates at 0.1s resolution. Output: 960 × 960 MP4 at 30 fps, with video above synchronized timing graphs. AAC audio is preserved."
+            setText(R.string.instructions)
             textSize = 16f; setPadding(0,dp(20),0,dp(24))
         })
         select = Button(this).apply {
-            text = "Select MP4 from gallery"
+            setText(R.string.select_video)
             setOnClickListener {
                 @Suppress("DEPRECATION")
                 startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -60,12 +60,12 @@ class MainActivity : Activity() {
         }
         layout.addView(select)
         cancel = Button(this).apply {
-            text = "Cancel processing"
+            setText(R.string.cancel_processing)
             setOnClickListener { startService(Intent(this@MainActivity,ProcessingService::class.java).setAction(ProcessingService.CANCEL)) }
         }
         layout.addView(cancel)
         open = Button(this).apply {
-            text = "Open saved video"
+            setText(R.string.open_video)
             setOnClickListener {
                 ProcessingState.current.output?.let { uri ->
                     runCatching { startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri,"video/mp4").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
@@ -91,6 +91,6 @@ class MainActivity : Activity() {
         val uri = data?.data ?: return
         runCatching { contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION) }
         try { startForegroundService(Intent(this,ProcessingService::class.java).setData(uri)) }
-        catch (e: Exception) { status.text = "Could not start processing: ${e.message}" }
+        catch (e: Exception) { status.text = getString(R.string.start_failed,e.message) }
     }
 }
