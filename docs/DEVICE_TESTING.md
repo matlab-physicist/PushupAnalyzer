@@ -15,3 +15,5 @@ Target: Samsung Galaxy S23 Ultra SM-S918B, Android 16, ARM64. These checks requi
 - Check device page size using `adb shell getconf PAGE_SIZE`; verify native model loading if the device uses 16 KB pages.
 
 Record source codec, dimensions, frame rate, duration, manual count, measured phase times, output count/times, handset firmware, elapsed processing time and observed failures. Never claim accuracy from the generated color-bar test alone.
+
+Version 1.2: repeat the same annotated shallow/mixed-depth video under Standard, Sensitive and Very sensitive. Record missed/extra reps, compare phase timestamps, verify the setting persists after reopening/rotation, and verify changing the selector is disabled during a job. Test small stationary pose jitter; choose a less sensitive setting if it overcounts.

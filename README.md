@@ -14,9 +14,21 @@ Download `PushupAnalyzer-debug-apk` from a successful [Android Actions run](http
 
 ## Measurement limits
 
-Version 1.1 removes the horizontal-torso gate and fixed 150°/110° elbow thresholds. It supports front, oblique, rear and side views when pose landmarks remain observable, independent of clothing colour. Six separate signals (each arm's 3D angle, 2D angle and torso-normalized reach) are calibrated using the clip's 10th/90th percentiles. A single trajectory is chosen by coverage, movement strength and cycle consistency; the two arms are never added together. Movement must exceed a noise floor (22° angle range or 0.16 torso lengths of reach). Brief gaps up to 0.3 seconds are interpolated; longer gaps break cycles. Median filtering and reversal hysteresis reduce jitter. Phase durations outside 0.15–15 seconds are excluded.
+Version 1.2 defaults to **Sensitive**. Before selecting a video, choose **Required movement**:
 
-This counts movement cycles rather than certifying full-depth push-up form. Partial-depth repetitive movements and other exercises may also count. Times have 0.1 second sample resolution plus pose-estimation error. No monocular model can guarantee accuracy at every angle: hidden joints, severe foreshortening, multiple people, camera motion and poor lighting can still cause errors. Keep a single person visible and use a steady camera. The clip must include representative high and low positions to calibrate. Synthetic tests cover compressed-angle 60-rep sequences, reach fallback, 3D rotation geometry, short/long gaps and noise; real-video accuracy across camera angles still requires annotated footage, including the original undercounting clip.
+| Mode | Minimum angle excursion | Minimum reach excursion (torso lengths) | Upward recovery |
+| --- | --- | --- | --- |
+| Standard | 22° | 0.16 | 80% of that rep's descent |
+| Sensitive (default) | 12° | 0.08 | 70% |
+| Very sensitive | 8° | 0.05 | 60% |
+
+If reps are missed, select Very sensitive and analyze again. If counts are inflated, use Standard. The choice is remembered across app launches and is fixed for each processing job. These are observed pose-signal thresholds, not physical centimetres of chest height or a certification of exercise form.
+
+The detector uses each rep's local peak and trough rather than requiring every rep to reach the deepest position in the video. This supports mixed shallow/deep reps and reduced upward return. It evaluates six signals (each arm's 3D angle, 2D angle and torso-normalized reach), rejects clips with insufficient signal range using 5th/95th percentiles, and chooses a single trajectory by coverage, strength and cycle consistency; both arms' counts are never added together. Median filtering suppresses single-frame spikes, reversal hysteresis limits jitter, phases must last 0.15–15 seconds, and a full movement cycle must last at least 0.5 seconds. Brief gaps up to 0.3 seconds are bridged; longer gaps break cycles. Confidence thresholds remain unchanged so sensitivity does not mean accepting arbitrary hidden-joint guesses.
+
+Front, oblique, rear and side views are supported when landmarks are visible, independent of clothing colour.
+
+This counts movement cycles rather than certifying full-depth push-up form. Partial-depth repetitive movements and other exercises may also count. Times have 0.1 second sample resolution plus pose-estimation error. No monocular model can guarantee accuracy at every angle: hidden joints, severe foreshortening, multiple people, camera motion and poor lighting can still cause errors. Keep a single person visible and use a steady camera. The clip must include representative high and low positions to calibrate. Synthetic tests cover 60 shallow reps, very small reach, mixed depths, reduced upward recovery, reach fallback, 3D rotation geometry, short/long gaps, spikes and noise; real-video accuracy across camera angles still requires annotated footage, including the original undercounting clip.
 
 Export resamples source video at 30 fps (including VFR footage), preserves aspect ratio, and produces SDR H.264. It does not retain HDR metadata, original resolution, or non-AAC audio. Processing can take longer than the source duration and uses temporary storage plus a gallery copy; the app checks available space before export. No silent duration truncation. Jobs are not automatically resumed after Android kills the app or the phone reboots; select the video again. Output timing uses EGL presentation timestamps, not wall-clock time or unsupported Canvas drawing on codec surfaces.
 

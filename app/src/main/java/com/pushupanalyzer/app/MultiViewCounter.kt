@@ -22,17 +22,18 @@ object MultiViewCounter {
         val torso = distance(shoulder,hip)
         return if (torso < 1e-3) null else (distance(shoulder,wrist)/torso).takeIf { it.isFinite() && it in 0.05..4.0 }
     }
-    fun detect(channels: Map<String,List<AngleSample>>, duration: Double): Analysis {
+    fun detect(channels: Map<String,List<AngleSample>>, duration: Double,
+               sensitivity: DetectionSensitivity = DetectionSensitivity.SENSITIVE): Analysis {
+        require(duration > 0 && duration.isFinite())
         val candidates = channels.mapNotNull { (name,samples) ->
             val values = samples.mapNotNull { it.angle?.takeIf(Double::isFinite) }.sorted()
             if (values.size < 8) return@mapNotNull null
             fun percentile(p: Double) = values[((values.size-1)*p).toInt()]
-            val low = percentile(0.1); val high = percentile(0.9); val range = high-low
+            val low = percentile(0.05); val high = percentile(0.95); val range = high-low
             // Absolute noise floors stop stationary poses from becoming reps after normalization.
-            val floor = if (name.contains("reach")) 0.16 else 22.0
+            val floor = if (name.contains("reach")) sensitivity.reachExcursion else sensitivity.angleExcursion
             if (range < floor) return@mapNotNull null
-            val normalized = samples.map { AngleSample(it.time,it.angle?.let { a -> (a-low)/range }) }
-            val result = count(normalized,duration)
+            val result = count(samples,duration,floor,sensitivity.recovery)
             val coverage = values.size.toDouble()/samples.size.coerceAtLeast(1)
             val lengths = result.reps.map { it.up.end-it.down.start }
             val consistency = if (lengths.size < 2) 0.7 else {
@@ -49,10 +50,10 @@ object MultiViewCounter {
             ?: Analysis(duration,emptyList(),channels.values.maxOfOrNull { s ->
                 s.count { it.angle != null }.toDouble()/s.size.coerceAtLeast(1) } ?: 0.0)
     }
-    private fun count(input: List<AngleSample>, duration: Double): Analysis {
+    private fun count(input: List<AngleSample>, duration: Double, excursion: Double, recovery: Double): Analysis {
         require(duration > 0)
         require(input.zipWithNext().all { (a,b) -> b.time>a.time })
-        val samples = input.toMutableList()
+        val samples = input.map { it.copy(angle=it.angle?.takeIf(Double::isFinite)) }.toMutableList()
         // Bridge brief occlusion only; long gaps remain breaks in the state machine.
         var previous = -1
         for (i in samples.indices) if (samples[i].angle != null) {
@@ -64,29 +65,37 @@ object MultiViewCounter {
             previous=i
         }
         val window=ArrayDeque<AngleSample>(); val reps=mutableListOf<Repetition>()
-        var state=0; var top=0.0; var bottom=0.0; var minimum=1.0; var prior=Double.NEGATIVE_INFINITY
+        var state=0 // establish a local top, descend, then recover upward
+        var top=0.0; var bottom=0.0; var peak=Double.NEGATIVE_INFINITY
+        var minimum=0.0; var prior=Double.NEGATIVE_INFINITY
+        fun reset() { state=0; peak=Double.NEGATIVE_INFINITY; window.clear() }
         for (s in samples) {
-            if (s.angle == null || !s.angle.isFinite()) { state=0;window.clear();continue }
-            if (s.time-prior>0.35) { state=0;window.clear() }
+            if (s.angle == null || !s.angle.isFinite()) { reset();continue }
+            if (s.time-prior>0.35) reset()
             prior=s.time; window.addLast(s); if(window.size>3)window.removeFirst()
             if(window.size<3)continue
             val a=window.map { it.angle!! }.sorted()[1]; val t=window.elementAt(1).time
             when(state) {
-                0 -> if(a>=0.8){ top=t; minimum=a;state=1 }
+                0 -> {
+                    // Follow each local peak; shallow reps need not reach the clip's deepest bottom.
+                    if(a>=peak){peak=a;top=t}
+                    if(peak-a>=excursion){minimum=a;bottom=t;state=1}
+                }
                 1 -> {
-                    if(a>=0.8)top=t
-                    if(a<=minimum){ minimum=a;bottom=t }
-                    if(minimum<=0.2 && a>=minimum+0.2)state=2
-                    if(t-top>30)state=0
+                    if(a<=minimum){minimum=a;bottom=t}
+                    val reversal=max(excursion*0.25,(peak-minimum)*0.15)
+                    if(a-minimum>=reversal)state=2
+                    if(t-top>30)reset()
                 }
                 2 -> {
                     if(a<minimum){minimum=a;bottom=t;state=1}
-                    if(a>=0.8){
-                        if(bottom-top in 0.15..15.0 && t-bottom in 0.15..15.0)
+                    if(a>=minimum+(peak-minimum)*recovery){
+                        val down=bottom-top;val up=t-bottom
+                        if(down in 0.15..15.0 && up in 0.15..15.0 && down+up>=0.5)
                             reps+=Repetition(Segment(top,bottom,Phase.DOWN),Segment(bottom,t,Phase.UP))
-                        top=t;minimum=a;state=1
+                        peak=a;top=t;state=0
                     }
-                    if(t-bottom>15)state=0
+                    if(t-bottom>15)reset()
                 }
             }
         }

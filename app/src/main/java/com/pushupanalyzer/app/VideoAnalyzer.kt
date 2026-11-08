@@ -11,7 +11,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.ceil
 
 class VideoAnalyzer(private val context: Context) {
-    fun analyze(uri: Uri, cancelled: () -> Unit, progress: (String) -> Unit): Analysis {
+    fun analyze(uri: Uri, cancelled: () -> Unit, progress: (String) -> Unit,
+                sensitivity: DetectionSensitivity = DetectionSensitivity.SENSITIVE): Analysis {
         val reader = MediaMetadataRetriever()
         val detector = PoseDetection.getClient(PoseDetectorOptions.Builder()
             .setDetectorMode(PoseDetectorOptions.STREAM_MODE).build())
@@ -37,7 +38,7 @@ class VideoAnalyzer(private val context: Context) {
                 } finally { frame?.recycle() }
                 if (i % 10 == 0) progress("Analyzing poses: ${100 * i / count}%")
             }
-            val analysis = MultiViewCounter.detect(channels, duration)
+            val analysis = MultiViewCounter.detect(channels, duration, sensitivity)
             require(analysis.coverage >= 0.25) {
                 "Too few visible poses. Keep one person and their arms visible. Try better lighting or less occlusion."
             }

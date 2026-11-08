@@ -45,6 +45,7 @@ class ProcessingService : Service() {
         if (intent?.action == CANCEL) { cancelled.set(true); if (!running) stopSelf(); return START_NOT_STICKY }
         if (running) return START_NOT_STICKY
         val uri = intent?.data ?: run { stopSelf(); return START_NOT_STICKY }
+        val sensitivity = DetectionSensitivity.fromName(intent.getStringExtra(SENSITIVITY))
         running = true; cancelled.set(false)
         val type = if (Build.VERSION.SDK_INT >= 35) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING else ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
         startForeground(1,notification("Starting offline analysis…"),type)
@@ -62,8 +63,8 @@ class ProcessingService : Service() {
             try {
                 // Remove abandoned cache exports from a process death, never gallery files.
                 cacheDir.listFiles()?.filter { it.name.startsWith("PushupAnalyzer_") && it.extension == "mp4" }?.forEach { it.delete() }
-                val analysis = VideoAnalyzer(this).analyze(uri,::checkCancel,::progress)
-                progress("${analysis.reps.size} full reps detected. Rendering…")
+                val analysis = VideoAnalyzer(this).analyze(uri,::checkCancel,::progress,sensitivity)
+                progress("${analysis.reps.size} estimated reps detected. Rendering…")
                 // Keep enough space for both temporary output and the gallery copy.
                 val estimatedBytes = (analysis.duration * 5_000_000 / 8 * 2.5).toLong()
                 require(cacheDir.usableSpace > estimatedBytes + 50_000_000) { "Not enough free storage for export." }
@@ -73,7 +74,7 @@ class ProcessingService : Service() {
                 val warning = if (audioOmitted) "\nNon-AAC source audio was omitted." else ""
                 val tracking = if (analysis.coverage < 0.8) "\nTracking was intermittent; review the estimated count." else ""
                 ProcessingState.publish(ProcessingState.Snapshot(false,
-                    "Saved to Movies/PushupAnalyzer.\n${analysis.reps.size} estimated full reps; ${"%.0f".format(analysis.coverage*100)}% pose coverage.$tracking$warning",saved))
+                    "Saved to Movies/PushupAnalyzer.\n${analysis.reps.size} estimated reps; ${"%.0f".format(analysis.coverage*100)}% pose coverage.$tracking$warning",saved))
             } catch (_: CancellationException) {
                 ProcessingState.publish(ProcessingState.Snapshot(false,"Cancelled. No output was saved."))
             } catch (e: Exception) {
@@ -96,6 +97,7 @@ class ProcessingService : Service() {
         super.onDestroy()
     }
     companion object {
+        const val SENSITIVITY = "com.pushupanalyzer.app.SENSITIVITY"
         const val CANCEL = "com.pushupanalyzer.app.CANCEL"
         private const val CHANNEL = "processing"
     }

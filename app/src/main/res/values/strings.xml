@@ -5,4 +5,11 @@
     <string name="cancel_processing">Cancel processing</string>
     <string name="open_video">Open saved video</string>
     <string name="start_failed">Could not start processing: %1$s</string>
+    <string name="required_movement">Required movement</string>
+    <string-array name="sensitivity_labels">
+        <item>Standard — larger movements</item>
+        <item>Sensitive — smaller movements (default)</item>
+        <item>Very sensitive — smallest movements</item>
+    </string-array>
+    <string name="sensitivity_help">If reps are missed, select Very sensitive and choose the video again. If the count is too high, use Standard. Sensitive modes accept less depth and less upward return; they do not assess push-up form.</string>
 </resources>

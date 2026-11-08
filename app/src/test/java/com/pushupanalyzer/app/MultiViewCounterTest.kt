@@ -14,7 +14,7 @@ class MultiViewCounterTest {
     }
     @Test fun calibratedPhasesRetainMediaTimeAndCountAtCompletion() {
         val a=MultiViewCounter.detect(mapOf("left-2d" to trace(1)),1.5)
-        assertEquals(0.5,a.reps.single().down.duration,0.0001)
+        assertEquals(0.6,a.reps.single().down.duration,0.0001)
         assertEquals(0.4,a.reps.single().up.duration,0.0001)
         assertEquals(0,a.countAt(1.19));assertEquals(1,a.countAt(1.21))
     }
@@ -47,4 +47,52 @@ class MultiViewCounterTest {
         assertEquals(MultiViewCounter.angle(s,e,w,true)!!,MultiViewCounter.angle(rotate(s),rotate(e),rotate(w),true)!!,0.001)
         assertNull(MultiViewCounter.angle(s.copy(confidence=0.2),e,w,true))
     }
+    @Test fun sensitiveCountsSixtyShallowRepsThatStandardRejects() {
+        val channels=mapOf("left-2d" to trace(60,130.0,14.0))
+        assertEquals(0,MultiViewCounter.detect(channels,90.0,DetectionSensitivity.STANDARD).reps.size)
+        assertEquals(60,MultiViewCounter.detect(channels,90.0,DetectionSensitivity.SENSITIVE).reps.size)
+    }
+    @Test fun verySensitiveAllowsEvenSmallerMovements() {
+        val channels=mapOf("left-3d" to trace(60,130.0,9.0))
+        assertEquals(0,MultiViewCounter.detect(channels,90.0,DetectionSensitivity.SENSITIVE).reps.size)
+        assertEquals(60,MultiViewCounter.detect(channels,90.0,DetectionSensitivity.VERY_SENSITIVE).reps.size)
+    }
+    @Test fun smallerBodyTravelIsAccepted() {
+        for ((span,mode) in listOf(0.09 to DetectionSensitivity.SENSITIVE,0.06 to DetectionSensitivity.VERY_SENSITIVE)) {
+            val channels=mapOf("left-reach" to trace(10,0.8,span))
+            assertEquals(0,MultiViewCounter.detect(channels,15.0,DetectionSensitivity.STANDARD).reps.size)
+            assertEquals(10,MultiViewCounter.detect(channels,15.0,mode).reps.size)
+        }
+    }
+    @Test fun deepRepsDoNotSetAnUnreachableBottomForShallowReps() {
+        val values=List(10) { rep -> cycle.map { 170.0-(1-it)*(if(rep%2==0)60.0 else 14.0) } }.flatten()
+        val channels=mapOf("left-3d" to values.mapIndexed { i,a -> AngleSample(i/10.0,a) })
+        assertEquals(10,MultiViewCounter.detect(channels,15.0,DetectionSensitivity.SENSITIVE).reps.size)
+        assertEquals(5,MultiViewCounter.detect(channels,15.0,DetectionSensitivity.STANDARD).reps.size)
+    }
+    @Test fun reducedUpwardReturnCanCompleteASensitiveRep() {
+        val values=cycle.mapIndexed { i,a -> if(i>=12)0.7 else a }
+        val channels=mapOf("left-2d" to values.mapIndexed { i,a -> AngleSample(i/10.0,95+a*45) })
+        assertEquals(0,MultiViewCounter.detect(channels,1.5,DetectionSensitivity.STANDARD).reps.size)
+        assertEquals(1,MultiViewCounter.detect(channels,1.5,DetectionSensitivity.SENSITIVE).reps.size)
+    }
+    @Test fun allModesRejectSmallJitterAndSingleFrameSpikes() {
+        val spikes=List(150) { i -> AngleSample(i/10.0,if(i%15==7)80.0 else 170.0) }
+        for(mode in DetectionSensitivity.entries) {
+            assertEquals(0,MultiViewCounter.detect(mapOf("left-3d" to trace(10,130.0,5.0)),15.0,mode).reps.size)
+            assertEquals(0,MultiViewCounter.detect(mapOf("left-3d" to spikes),15.0,mode).reps.size)
+        }
+    }
+    @Test fun startsAtBottomAndFastOscillationDoNotInventReps() {
+        val tail=trace(1).drop(7).mapIndexed { i,s -> s.copy(time=i/10.0) }
+        val rapid=trace(10).mapIndexed { i,s -> s.copy(time=i*0.02) }
+        assertEquals(0,MultiViewCounter.detect(mapOf("left-3d" to tail),1.0,DetectionSensitivity.SENSITIVE).reps.size)
+        assertEquals(0,MultiViewCounter.detect(mapOf("left-3d" to rapid),3.0,DetectionSensitivity.SENSITIVE).reps.size)
+    }
+    @Test fun unknownOrMissingPreferenceUsesSensitiveDefault() {
+        assertEquals(DetectionSensitivity.SENSITIVE,DetectionSensitivity.fromName(null))
+        assertEquals(DetectionSensitivity.SENSITIVE,DetectionSensitivity.fromName("invalid"))
+        assertEquals(DetectionSensitivity.VERY_SENSITIVE,DetectionSensitivity.fromName("VERY_SENSITIVE"))
+    }
+
 }
