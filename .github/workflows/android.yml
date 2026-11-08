@@ -68,6 +68,18 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: ./gradlew --no-daemon connectedDebugAndroidTest
+      - name: Print Android test failures
+        if: always()
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for path in Path('app/build/outputs/androidTest-results').rglob('TEST-*.xml'):
+              report = ET.parse(path).getroot()
+              print(path, report.attrib)
+              for failure in report.iter('failure'):
+                  print(failure.attrib, failure.text)
+          PYTHON
       - uses: actions/upload-artifact@v4
         if: always()
         with:

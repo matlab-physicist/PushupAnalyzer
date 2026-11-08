@@ -26,7 +26,7 @@ class VideoPipelineTest {
         val analysis = Analysis(2.0,listOf(Repetition(Segment(0.2,0.8,Phase.DOWN),Segment(0.8,1.4,Phase.UP))),1.0)
         var saved: Uri? = null
         try {
-            assertFalse(VideoExporter(context).export(Uri.fromFile(source),analysis,output,{},{ }))
+            assertFalse("AAC audio should be retained",VideoExporter(context).export(Uri.fromFile(source),analysis,output,{},{ }))
             val reader = MediaMetadataRetriever()
             try {
                 reader.setDataSource(output.absolutePath)
@@ -38,9 +38,9 @@ class VideoPipelineTest {
                 try {
                     // Detect vertical flips in the GLES texture upload, and verify the graph panel.
                     val top = frame.getPixel(480,180); val bottom = frame.getPixel(480,480)
-                    assertTrue(Color.red(top) > Color.blue(top)+100)
-                    assertTrue(Color.blue(bottom) > Color.red(bottom)+100)
-                    assertTrue(Color.red(frame.getPixel(20,800)) < 60)
+                    assertTrue("Top video pixel should be red: ${Integer.toHexString(top)}",Color.red(top) > Color.blue(top)+100)
+                    assertTrue("Bottom video pixel should be blue: ${Integer.toHexString(bottom)}",Color.blue(bottom) > Color.red(bottom)+100)
+                    assertTrue("Graph background is missing",Color.red(frame.getPixel(20,800)) < 60)
                     // Graph playhead at time=1.0, half of a 2.0 second clip.
                     val line = frame.getPixel(504,750)
                     assertTrue("graph playhead missing",Color.red(line)>150 && Color.green(line)>150)
@@ -50,12 +50,12 @@ class VideoPipelineTest {
             try {
                 extractor.setDataSource(output.absolutePath)
                 val video = (0 until extractor.trackCount).first { extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME) == "video/avc" }
-                assertTrue((0 until extractor.trackCount).any { extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME) == "audio/mp4a-latm" })
+                assertTrue("Export has no AAC audio track",(0 until extractor.trackCount).any { extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME) == "audio/mp4a-latm" })
                 extractor.selectTrack(video)
                 var frames = 0; var previous = -1L
                 while (extractor.sampleTime >= 0) {
                     val pts = extractor.sampleTime
-                    assertTrue(pts > previous)
+                    assertTrue("Non-increasing PTS at frame $frames: $previous -> $pts",pts > previous)
                     if (previous >= 0) assertTrue("frame delta=${pts-previous}",pts-previous in 33332..33334)
                     previous = pts; frames++; extractor.advance()
                 }
