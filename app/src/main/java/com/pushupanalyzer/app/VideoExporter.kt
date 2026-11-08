@@ -109,8 +109,12 @@ class VideoExporter(private val context: Context) {
                 val buffer = ByteBuffer.allocateDirect(1024*1024)
                 while (true) {
                     cancelled()
+                    // AAC priming packets can have valid negative timestamps. Only the
+                    // track index identifies EOS; skip preroll before the video timeline.
+                    if (audio.sampleTrackIndex < 0) break
                     val pts = audio.sampleTime
-                    if (pts < 0 || pts >= (analysis.duration*1_000_000).toLong()) break
+                    if (pts < 0) { audio.advance(); continue }
+                    if (pts >= (analysis.duration*1_000_000).toLong()) break
                     buffer.clear()
                     val size = audio.readSampleData(buffer,0)
                     if (size < 0) break

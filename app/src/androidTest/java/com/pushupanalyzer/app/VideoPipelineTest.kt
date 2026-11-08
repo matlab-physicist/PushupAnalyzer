@@ -60,6 +60,20 @@ class VideoPipelineTest {
                     previous = pts; frames++; extractor.advance()
                 }
                 assertEquals(60,frames)
+                extractor.unselectTrack(video)
+                val audio = (0 until extractor.trackCount).first { extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME) == "audio/mp4a-latm" }
+                extractor.selectTrack(audio)
+                extractor.seekTo(0,MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+                val firstAudio = extractor.sampleTime
+                var lastAudio = firstAudio
+                var packets = 0
+                while (extractor.sampleTrackIndex >= 0) {
+                    lastAudio = extractor.sampleTime
+                    packets++; extractor.advance()
+                }
+                assertTrue("Audio starts at $firstAudio us",firstAudio in 0..50_000)
+                assertTrue("Audio ended early at $lastAudio us",lastAudio in 1_800_000..2_050_000)
+                assertTrue("Too few AAC packets: $packets",packets >= 80)
             } finally { extractor.release() }
             saved = GalleryStore.save(context,output,{})
             context.contentResolver.openAssetFileDescriptor(saved,"r")!!.use { assertEquals(output.length(),it.length) }
